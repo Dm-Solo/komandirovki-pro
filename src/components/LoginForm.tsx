@@ -42,7 +42,7 @@ export default function LoginForm() {
         setBusy(false);
         return;
       }
-      router.push("/");
+      router.push("/calendar");
       router.refresh();
     } catch {
       setError("Не удалось связаться с сервером");

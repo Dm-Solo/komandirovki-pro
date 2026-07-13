@@ -41,7 +41,7 @@ export default async function ReportDetailPage({
       )}
       <div className="flex items-center gap-3 mb-5">
         <a
-          href="/"
+          href="/reports"
           className="border-none w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-base no-underline"
           style={{ background: "oklch(0.95 0.005 255)", color: "oklch(0.4 0.01 255)" }}
         >

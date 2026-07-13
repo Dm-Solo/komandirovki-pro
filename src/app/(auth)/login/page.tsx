@@ -4,7 +4,7 @@ import LoginForm from "@/components/LoginForm";
 
 export default async function LoginPage() {
   const user = await getCurrentUser();
-  if (user) redirect("/");
+  if (user) redirect("/calendar");
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-6">

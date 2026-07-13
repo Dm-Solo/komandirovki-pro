@@ -194,7 +194,7 @@ export default function NewReportPage() {
     <div className="p-4.5 md:p-8 max-w-[720px] mx-auto pb-16 md:pb-12">
       <div className="flex items-center gap-3 mb-5.5">
         <a
-          href="/"
+          href="/reports"
           className="border-none w-[34px] h-[34px] rounded-[9px] flex items-center justify-center text-base no-underline"
           style={{ background: "oklch(0.95 0.005 255)", color: "oklch(0.4 0.01 255)" }}
         >
@@ -522,7 +522,7 @@ export default function NewReportPage() {
       <div className="flex justify-between mt-5.5">
         {step === 0 ? (
           <a
-            href="/"
+            href="/reports"
             className="border rounded-[10px] bg-white font-bold text-[13.5px] py-2.5 px-4.5 no-underline"
             style={{ borderColor: "var(--border)", color: "oklch(0.4 0.015 255)" }}
           >

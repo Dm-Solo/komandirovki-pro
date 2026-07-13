@@ -12,7 +12,7 @@ type UserInfo = {
 const NAV_ITEMS = [
   { href: "/calendar", label: "Календарь", match: ["/calendar"] },
   { href: "/trips", label: "Планирование поездок", match: ["/trips"] },
-  { href: "/", label: "Мои отчёты", match: ["/", "/reports"] },
+  { href: "/reports", label: "Мои отчёты", match: ["/reports"] },
 ];
 
 function isActive(pathname: string, match: string[]) {
@@ -125,7 +125,7 @@ export function MobileBottomNav() {
   const pathname = usePathname();
   const items = [
     { href: "/calendar", icon: "📅", label: "Планы", match: ["/calendar", "/trips"] },
-    { href: "/", icon: "📋", label: "Отчёты", match: ["/", "/reports"] },
+    { href: "/reports", icon: "📋", label: "Отчёты", match: ["/reports"] },
     { href: "/reports/new", icon: "➕", label: "Новый", match: ["/reports/new"] },
   ];
   return (

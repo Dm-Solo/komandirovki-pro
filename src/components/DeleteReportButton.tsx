@@ -7,7 +7,7 @@ export default function DeleteReportButton({ reportId }: { reportId: string }) {
   const onDelete = async () => {
     if (!confirm("Удалить этот отчёт?")) return;
     await fetch(`/api/reports/${reportId}`, { method: "DELETE" });
-    router.push("/");
+    router.push("/reports");
     router.refresh();
   };
   return (
