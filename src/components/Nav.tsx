@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/calendar", label: "Календарь", match: ["/calendar"] },
   { href: "/trips", label: "Планирование поездок", match: ["/trips"] },
   { href: "/reports", label: "Мои отчёты", match: ["/reports"] },
+  { href: "/tasks", label: "Задачи", match: ["/tasks"] },
 ];
 
 function isActive(pathname: string, match: string[]) {
@@ -127,6 +128,7 @@ export function MobileBottomNav() {
     { href: "/calendar", icon: "📅", label: "Планы", match: ["/calendar", "/trips"] },
     { href: "/reports", icon: "📋", label: "Отчёты", match: ["/reports"] },
     { href: "/reports/new", icon: "➕", label: "Новый", match: ["/reports/new"] },
+    { href: "/tasks", icon: "✅", label: "Задачи", match: ["/tasks"] },
   ];
   return (
     <div
