@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { createReport, listReports } from "@/lib/data";
+import { createReport, listReports, setReportBitrixItemId } from "@/lib/data";
+import { syncReportToBitrix } from "@/lib/bitrix";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -24,5 +25,9 @@ export async function POST(req: NextRequest) {
     voiceNoteUploadId: body.voiceNoteUploadId || null,
     aiSummary: body.aiSummary || null,
   });
+
+  const bitrixItemId = await syncReportToBitrix(report);
+  if (bitrixItemId) setReportBitrixItemId(report.id, bitrixItemId);
+
   return NextResponse.json({ report });
 }

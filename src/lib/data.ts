@@ -274,3 +274,7 @@ export function approvedReportsSum(userId: string): number {
     .get(userId) as { s: number };
   return row.s;
 }
+
+export function setReportBitrixItemId(reportId: string, bitrixItemId: string): void {
+  db.prepare("UPDATE reports SET bitrix_item_id = ? WHERE id = ?").run(bitrixItemId, reportId);
+}

@@ -57,6 +57,7 @@ function createSchema(db: DatabaseSync) {
       comment TEXT,
       ai_summary TEXT,
       approval_steps TEXT NOT NULL DEFAULT '[]',
+      bitrix_item_id TEXT,
       created_at INTEGER NOT NULL
     );
 
@@ -81,6 +82,11 @@ function createSchema(db: DatabaseSync) {
       created_at INTEGER NOT NULL
     );
   `);
+
+  const reportColumns = db.prepare("PRAGMA table_info(reports)").all() as { name: string }[];
+  if (!reportColumns.some((c) => c.name === "bitrix_item_id")) {
+    db.exec("ALTER TABLE reports ADD COLUMN bitrix_item_id TEXT");
+  }
 }
 
 function seed(db: DatabaseSync) {
