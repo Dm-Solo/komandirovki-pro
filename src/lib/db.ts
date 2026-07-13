@@ -175,5 +175,17 @@ function getDb(): DatabaseSync {
   return global.__db;
 }
 
-export const db = getDb();
+// Lazy proxy: importing this module must not touch the filesystem or open
+// the database. Next.js imports route modules at build time (e.g. while
+// "collecting page data"), and a build-time DB open can collide with a
+// separately running dev server holding the same SQLite file. The real
+// connection is created on first actual use (db.prepare(...), etc.).
+export const db = new Proxy({} as DatabaseSync, {
+  get(_target, prop, _receiver) {
+    const real = getDb();
+    const value = Reflect.get(real, prop, real);
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+});
+
 export const UPLOADS_DIR = uploadsDir;
