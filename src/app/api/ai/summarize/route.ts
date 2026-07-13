@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY не настроен. Добавьте ключ в .env.local, чтобы включить анализ ИИ." },
+      { error: "ANTHROPIC_API_KEY не настроен. Добавьте переменную окружения ANTHROPIC_API_KEY, чтобы включить анализ ИИ." },
       { status: 503 }
     );
   }
