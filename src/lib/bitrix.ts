@@ -43,14 +43,31 @@ type VibeItemResponse = {
  */
 export async function syncReportToBitrix(report: Report): Promise<string | null> {
   const apiKey = process.env.VIBECODE_API_KEY;
-  if (!apiKey || !ENTITY_TYPE_ID) return null;
+  if (!apiKey) {
+    console.warn("[bitrix] skipped sync for report", report.id, "— VIBECODE_API_KEY is not set");
+    return null;
+  }
+  if (!ENTITY_TYPE_ID) {
+    console.warn("[bitrix] skipped sync for report", report.id, "— BITRIX_REPORT_ENTITY_TYPE_ID is not set");
+    return null;
+  }
 
   const headers = { "X-Api-Key": apiKey, "Content-Type": "application/json" };
 
   try {
     const meRes = await fetch(`${VIBE_BASE}/v1/me`, { headers });
     const me = (await meRes.json()) as VibeMeResponse;
-    if (!meRes.ok || !me.success || !me.data?.owner?.userId) return null;
+    if (!meRes.ok || !me.success || !me.data?.owner?.userId) {
+      console.error(
+        "[bitrix] GET /v1/me failed for report",
+        report.id,
+        "status:",
+        meRes.status,
+        "body:",
+        JSON.stringify(me)
+      );
+      return null;
+    }
 
     const payload: Record<string, unknown> = {
       title: report.title,
@@ -73,10 +90,22 @@ export async function syncReportToBitrix(report: Report): Promise<string | null>
       body: JSON.stringify(payload),
     });
     const itemData = (await itemRes.json()) as VibeItemResponse;
-    if (!itemRes.ok || !itemData.success || !itemData.data?.id) return null;
+    if (!itemRes.ok || !itemData.success || !itemData.data?.id) {
+      console.error(
+        "[bitrix] POST /v1/items failed for report",
+        report.id,
+        "status:",
+        itemRes.status,
+        "body:",
+        JSON.stringify(itemData)
+      );
+      return null;
+    }
 
+    console.log("[bitrix] synced report", report.id, "-> item", itemData.data.id);
     return String(itemData.data.id);
-  } catch {
+  } catch (err) {
+    console.error("[bitrix] sync threw for report", report.id, err);
     return null;
   }
 }

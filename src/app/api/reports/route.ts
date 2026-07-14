@@ -29,5 +29,5 @@ export async function POST(req: NextRequest) {
   const bitrixItemId = await syncReportToBitrix(report);
   if (bitrixItemId) setReportBitrixItemId(report.id, bitrixItemId);
 
-  return NextResponse.json({ report });
+  return NextResponse.json({ report, bitrixSynced: !!bitrixItemId });
 }
