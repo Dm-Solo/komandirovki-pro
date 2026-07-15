@@ -14,20 +14,20 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-4.5 md:p-8 max-w-[920px] mx-auto pb-16 md:pb-12">
-      <div className="flex items-start justify-between gap-3 mb-5.5 flex-wrap">
-        <div>
+      <div className="mb-5.5">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="text-[22px] font-extrabold tracking-tight">Мои отчёты о командировках</div>
-          <div className="text-[13.5px] mt-1" style={{ color: "var(--muted)" }}>
-            Всего отчётов: {reports.length}
-          </div>
+          <Link
+            href="/reports/new"
+            className="border-none cursor-pointer text-white font-bold text-[13.5px] py-2.5 px-4.5 rounded-[10px] shadow-md whitespace-nowrap"
+            style={{ background: "var(--primary)" }}
+          >
+            + Добавить
+          </Link>
         </div>
-        <Link
-          href="/reports/new"
-          className="border-none cursor-pointer text-white font-bold text-[13.5px] py-2.5 px-4.5 rounded-[10px] shadow-md whitespace-nowrap"
-          style={{ background: "var(--primary)" }}
-        >
-          + Добавить
-        </Link>
+        <div className="text-[13.5px] mt-1" style={{ color: "var(--muted)" }}>
+          Всего отчётов: {reports.length}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5.5">
