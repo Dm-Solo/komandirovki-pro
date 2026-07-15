@@ -14,7 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .toUpperCase();
 
   return (
-    <div className="h-screen w-full flex" style={{ background: "var(--surface)" }}>
+    <div className="h-screen-safe w-full flex" style={{ background: "var(--surface)" }}>
       <Sidebar userName={user.name} userRole={user.role} userInitials={userInitials} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <MobileTopBar />
