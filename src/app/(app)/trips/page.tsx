@@ -23,7 +23,7 @@ export default async function TripsPage() {
           className="border-none cursor-pointer text-white font-bold text-[13.5px] py-2.5 px-4.5 rounded-[10px] shadow-md whitespace-nowrap"
           style={{ background: "var(--primary)" }}
         >
-          + Новая поездка
+          + Добавить
         </Link>
       </div>
 
