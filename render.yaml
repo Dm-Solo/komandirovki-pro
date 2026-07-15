@@ -8,5 +8,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: ANTHROPIC_API_KEY
+      - key: YANDEX_AI_STUDIO_API_KEY
+        sync: false
+      - key: YANDEX_AI_STUDIO_FOLDER_ID
         sync: false

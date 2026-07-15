@@ -7,3 +7,4 @@ data/uploads/*
 scratch/
 dev-server.log
 prod-server.log
+tsconfig.tsbuildinfo

@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { ATTACHMENT_TYPES, PURPOSE_LABELS } from "@/lib/constants";
+
+const YANDEX_COMPLETION_URL = "https://ai.api.cloud.yandex.net/v1/chat/completions";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const apiKey = process.env.YANDEX_AI_STUDIO_API_KEY;
+  const folderId = process.env.YANDEX_AI_STUDIO_FOLDER_ID;
+  if (!apiKey || !folderId) {
     return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY не настроен. Добавьте переменную окружения ANTHROPIC_API_KEY, чтобы включить анализ ИИ." },
+      {
+        error:
+          "Yandex AI Studio не настроен. Добавьте переменные окружения YANDEX_AI_STUDIO_API_KEY и YANDEX_AI_STUDIO_FOLDER_ID, чтобы включить анализ ИИ.",
+      },
       { status: 503 }
     );
   }
@@ -52,17 +58,30 @@ export async function POST(req: NextRequest) {
     `Итоговая сумма расходов: ${total} руб.`;
 
   try {
-    const client = new Anthropic();
-    const response = await client.messages.create({
-      model: "claude-opus-4-8",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+    const res = await fetch(YANDEX_COMPLETION_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Api-Key ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: `gpt://${folderId}/yandexgpt/latest`,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: 1024,
+      }),
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
-    const summary = textBlock && textBlock.type === "text" ? textBlock.text : "";
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("[yandex-ai-studio] completion failed", res.status, JSON.stringify(data));
+      return NextResponse.json({ error: "Не удалось получить анализ ИИ. Попробуйте ещё раз." }, { status: 502 });
+    }
+
+    const summary: string = data?.choices?.[0]?.message?.content ?? "";
     return NextResponse.json({ summary });
   } catch (err) {
+    console.error("[yandex-ai-studio] completion threw", err);
     return NextResponse.json({ error: "Не удалось получить анализ ИИ. Попробуйте ещё раз." }, { status: 502 });
   }
 }
