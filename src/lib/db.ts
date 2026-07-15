@@ -47,6 +47,7 @@ function createSchema(db: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS reports (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      trip_id TEXT REFERENCES trips(id),
       title TEXT NOT NULL,
       destination TEXT NOT NULL,
       purpose TEXT NOT NULL,
@@ -86,6 +87,9 @@ function createSchema(db: DatabaseSync) {
   const reportColumns = db.prepare("PRAGMA table_info(reports)").all() as { name: string }[];
   if (!reportColumns.some((c) => c.name === "bitrix_item_id")) {
     db.exec("ALTER TABLE reports ADD COLUMN bitrix_item_id TEXT");
+  }
+  if (!reportColumns.some((c) => c.name === "trip_id")) {
+    db.exec("ALTER TABLE reports ADD COLUMN trip_id TEXT REFERENCES trips(id)");
   }
 }
 

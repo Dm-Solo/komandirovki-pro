@@ -25,6 +25,7 @@ export type VoiceNote = {
 
 export type Report = {
   id: string;
+  tripId: string | null;
   title: string;
   destination: string;
   purpose: string;

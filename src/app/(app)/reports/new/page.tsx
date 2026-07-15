@@ -35,6 +35,8 @@ export default function NewReportPage() {
   const searchParams = useSearchParams();
 
   const [step, setStep] = useState(0);
+  const [trips, setTrips] = useState<Trip[] | null>(null);
+  const [tripId, setTripId] = useState("");
   const [destination, setDestination] = useState("");
   const [purpose, setPurpose] = useState("conference");
   const [startDate, setStartDate] = useState("");
@@ -51,9 +53,18 @@ export default function NewReportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    fetch("/api/trips")
+      .then((r) => r.json())
+      .then((data: { trips?: Trip[] }) => setTrips(data.trips ?? []));
+
     const fromTrip = searchParams.get("fromTrip");
-    if (!fromTrip) return;
-    fetch(`/api/trips/${fromTrip}`)
+    if (fromTrip) applyTrip(fromTrip);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const applyTrip = (id: string) => {
+    setTripId(id);
+    fetch(`/api/trips/${id}`)
       .then((r) => r.json())
       .then((data: { trip?: Trip }) => {
         if (data.trip) {
@@ -63,10 +74,9 @@ export default function NewReportPage() {
           setEndDate(data.trip.endDate);
         }
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
-  const step1Valid = !!(destination && startDate && endDate);
+  const step1Valid = !!(tripId && destination && startDate && endDate);
   const receiptsScanning = receipts.some((r) => r.scanning);
   const step2Valid = receipts.length > 0 && !receiptsScanning;
   const nextDisabled = step === 0 ? !step1Valid : step === 1 ? !step2Valid : false;
@@ -165,6 +175,7 @@ export default function NewReportPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        tripId,
         destination,
         purpose,
         startDate,
@@ -238,8 +249,36 @@ export default function NewReportPage() {
         })}
       </div>
 
-      {step === 0 && (
+      {step === 0 && trips && trips.length === 0 && (
+        <div
+          className="border-[1.5px] border-dashed rounded-2xl py-9 px-5 text-center text-[13px] flex flex-col items-center gap-3"
+          style={{ borderColor: "var(--border)", color: "var(--muted-2)" }}
+        >
+          <div>Отчёт можно создать только для существующей командировки. У вас пока нет ни одной.</div>
+          <a
+            href="/trips/new"
+            className="inline-block border-none cursor-pointer text-white font-bold text-[13px] py-2.5 px-4.5 rounded-[10px] no-underline"
+            style={{ background: "var(--primary)" }}
+          >
+            + Новая командировка
+          </a>
+        </div>
+      )}
+
+      {step === 0 && trips && trips.length > 0 && (
         <div className="bg-white border rounded-2xl p-5.5 flex flex-col gap-4" style={{ borderColor: "var(--border)" }}>
+          <Field label="Командировка">
+            <select className="input" value={tripId} onChange={(e) => applyTrip(e.target.value)}>
+              <option value="" disabled>
+                Выберите командировку
+              </option>
+              {trips.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.destination} · {t.startDate} — {t.endDate}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Цель поездки">
             <select className="input" value={purpose} onChange={(e) => setPurpose(e.target.value)}>
               {Object.entries(PURPOSE_LABELS).map(([value, label]) => (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { createReport, listReports, setReportBitrixItemId } from "@/lib/data";
+import { createReport, getTrip, listReports, setReportBitrixItemId } from "@/lib/data";
 import { syncReportToBitrix } from "@/lib/bitrix";
 
 export async function GET() {
@@ -14,7 +14,13 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
 
   const body = await req.json();
+  const tripId = String(body.tripId || "");
+  if (!tripId || !getTrip(user.id, tripId)) {
+    return NextResponse.json({ error: "Отчёт должен быть привязан к командировке" }, { status: 400 });
+  }
+
   const report = createReport(user.id, {
+    tripId,
     destination: String(body.destination || ""),
     purpose: String(body.purpose || "other"),
     startDate: String(body.startDate || ""),

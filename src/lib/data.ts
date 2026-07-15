@@ -8,6 +8,7 @@ import type { ApprovalStep, Attachment, Receipt, Report, Trip, VoiceNote } from 
 type ReportRow = {
   id: string;
   user_id: string;
+  trip_id: string | null;
   title: string;
   destination: string;
   purpose: string;
@@ -60,6 +61,7 @@ function voiceNoteForReport(reportId: string): VoiceNote | null {
 function decorateReport(row: ReportRow): Report {
   return {
     id: row.id,
+    tripId: row.trip_id,
     title: row.title,
     destination: row.destination,
     purpose: row.purpose,
@@ -128,6 +130,7 @@ export function deleteReport(userId: string, id: string): boolean {
 export function createReport(
   userId: string,
   input: {
+    tripId: string;
     destination: string;
     purpose: string;
     startDate: string;
@@ -148,11 +151,12 @@ export function createReport(
   ];
 
   db.prepare(
-    `INSERT INTO reports (id, user_id, title, destination, purpose, start_date, end_date, amount, status, comment, ai_summary, approval_steps, created_at)
-     VALUES (@id, @user_id, @title, @destination, @purpose, @start_date, @end_date, @amount, @status, @comment, @ai_summary, @approval_steps, @created_at)`
+    `INSERT INTO reports (id, user_id, trip_id, title, destination, purpose, start_date, end_date, amount, status, comment, ai_summary, approval_steps, created_at)
+     VALUES (@id, @user_id, @trip_id, @title, @destination, @purpose, @start_date, @end_date, @amount, @status, @comment, @ai_summary, @approval_steps, @created_at)`
   ).run({
     id,
     user_id: userId,
+    trip_id: input.tripId,
     title: (input.destination || "Командировка") + " — новый отчёт",
     destination: input.destination || "—",
     purpose: input.purpose,

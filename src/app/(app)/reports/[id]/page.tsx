@@ -60,6 +60,14 @@ export default async function ReportDetailPage({
           <Info label="Сумма" value={`${fmt(report.amount)} ₽`} />
         </div>
 
+        {report.tripId && (
+          <div className="mt-3.5 pt-3.5 border-t text-[13px]" style={{ borderColor: "oklch(0.95 0.005 255)" }}>
+            <a href={`/trips/${report.tripId}`} className="link font-semibold">
+              Смотреть командировку →
+            </a>
+          </div>
+        )}
+
         {report.voiceNote && (
           <div className="flex items-center gap-2.5 mt-3.5 pt-3.5 border-t" style={{ borderColor: "oklch(0.95 0.005 255)" }}>
             <span className="text-sm">🎙️</span>
