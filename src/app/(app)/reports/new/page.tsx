@@ -30,21 +30,12 @@ type LocalAttachment = {
 
 const STEP_LABELS = ["Информация", "Чеки", "Проверка"];
 
-// Yandex SpeechKit's sync stt:recognize endpoint caps request bodies at 1MB.
-// Raw 16-bit PCM has no compression, so a plain 16kHz mono encoding only fits
-// ~30s of audio; leave headroom and fall back to 8kHz (Yandex's other
-// supported lpcm rate) for longer recordings to roughly double that budget.
-const STT_MAX_BYTES = 950_000;
-const STT_BYTES_PER_SAMPLE = 2;
-
-function pickSampleRate(durationSeconds: number): 8000 | 16000 {
-  const maxAt16k = STT_MAX_BYTES / (16000 * STT_BYTES_PER_SAMPLE);
-  return durationSeconds <= maxAt16k ? 16000 : 8000;
-}
-
-function maxDurationFor(rate: number): number {
-  return STT_MAX_BYTES / (rate * STT_BYTES_PER_SAMPLE);
-}
+// Yandex SpeechKit's sync stt:recognize endpoint hard-caps clips at 30s of
+// audio, independent of the (also enforced) 1MB request body limit - at
+// 16kHz mono 16-bit PCM, 29s of audio is ~928KB, comfortably under both, so
+// a single fixed rate/duration budget covers both constraints at once.
+const STT_SAMPLE_RATE = 16000;
+const STT_MAX_DURATION_SECONDS = 29;
 
 async function decodeAudioBuffer(blob: Blob): Promise<AudioBuffer> {
   const arrayBuffer = await blob.arrayBuffer();
@@ -94,10 +85,9 @@ async function transcribeVoiceNote(uploadId: string): Promise<string> {
     throw new Error(`Не удалось обработать аудиозапись (неподдерживаемый или повреждённый формат): ${reason}`);
   }
 
-  const rate = pickSampleRate(decoded.duration);
-  const { buffer: pcm, truncated } = await renderPcm16(decoded, rate, maxDurationFor(rate));
+  const { buffer: pcm, truncated } = await renderPcm16(decoded, STT_SAMPLE_RATE, STT_MAX_DURATION_SECONDS);
 
-  const res = await fetch(`/api/ai/transcribe?sampleRateHertz=${rate}`, {
+  const res = await fetch(`/api/ai/transcribe?sampleRateHertz=${STT_SAMPLE_RATE}`, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: pcm,
@@ -106,7 +96,7 @@ async function transcribeVoiceNote(uploadId: string): Promise<string> {
   if (!res.ok) throw new Error(data.error || "Не удалось распознать голосовое сообщение");
   const text = (data.text as string) || "";
   return truncated
-    ? `${text}${text ? "\n\n" : ""}[Распознана только первая часть записи — она длиннее ограничения сервиса распознавания]`
+    ? `${text}${text ? "\n\n" : ""}[Распознаны только первые ${STT_MAX_DURATION_SECONDS} секунд записи — сервис распознавания не поддерживает более длинные ролики]`
     : text;
 }
 
