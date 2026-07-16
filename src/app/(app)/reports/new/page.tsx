@@ -95,6 +95,7 @@ export default function NewReportPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const transcriptionPromiseRef = useRef<Promise<string> | null>(null);
 
   useEffect(() => {
     fetch("/api/trips")
@@ -124,6 +125,34 @@ export default function NewReportPage() {
   const receiptsScanning = receipts.some((r) => r.scanning);
   const step2Valid = receipts.length > 0 && !receiptsScanning;
   const nextDisabled = step === 0 ? !step1Valid : step === 1 ? !step2Valid : false;
+
+  // Shares one in-flight transcription across all trigger points (step
+  // transition, AI-analyze, submit) instead of racing duplicate requests.
+  const ensureTranscript = (): Promise<string> => {
+    if (voiceTranscript !== null) return Promise.resolve(voiceTranscript);
+    if (!voiceNote) return Promise.resolve("");
+    if (!transcriptionPromiseRef.current) {
+      transcriptionPromiseRef.current = transcribeVoiceNote(voiceNote.id)
+        .then((text) => {
+          setVoiceTranscript(text);
+          return text;
+        })
+        .catch((err) => {
+          console.error("Не удалось распознать голосовое сообщение", err);
+          setVoiceTranscript("");
+          return "";
+        })
+        .finally(() => {
+          transcriptionPromiseRef.current = null;
+        });
+    }
+    return transcriptionPromiseRef.current;
+  };
+
+  const goToNextStep = () => {
+    if (step === 0 && voiceNote) ensureTranscript();
+    setStep((s) => Math.min(2, s + 1));
+  };
 
   const addReceipt = () => {
     const id = "rc" + Date.now() + Math.random().toString(36).slice(2, 6);
@@ -186,18 +215,8 @@ export default function NewReportPage() {
     setAiLoading(true);
     setAiError(null);
     try {
-      let transcript = voiceTranscript;
-      if (voiceNote && transcript === null) {
-        setAiStage("transcribing");
-        try {
-          transcript = await transcribeVoiceNote(voiceNote.id);
-          setVoiceTranscript(transcript);
-        } catch (err) {
-          transcript = "";
-          setVoiceTranscript("");
-          console.error("Не удалось распознать голосовое сообщение", err);
-        }
-      }
+      if (voiceNote && voiceTranscript === null) setAiStage("transcribing");
+      const transcript = await ensureTranscript();
 
       setAiStage("analyzing");
       const res = await fetch("/api/ai/summarize", {
@@ -232,17 +251,7 @@ export default function NewReportPage() {
   const submitReport = async () => {
     setSubmitting(true);
 
-    let transcript = voiceTranscript;
-    if (voiceNote && transcript === null) {
-      try {
-        transcript = await transcribeVoiceNote(voiceNote.id);
-        setVoiceTranscript(transcript);
-      } catch (err) {
-        transcript = "";
-        setVoiceTranscript("");
-        console.error("Не удалось распознать голосовое сообщение", err);
-      }
-    }
+    const transcript = await ensureTranscript();
 
     const res = await fetch("/api/reports", {
       method: "POST",
@@ -683,7 +692,7 @@ export default function NewReportPage() {
           </button>
         ) : (
           <button
-            onClick={() => setStep((s) => Math.min(2, s + 1))}
+            onClick={goToNextStep}
             disabled={nextDisabled}
             className="border-none cursor-pointer text-white font-bold text-[13.5px] py-2.5 px-5 rounded-[10px] disabled:cursor-not-allowed"
             style={{ background: nextDisabled ? "oklch(0.85 0.006 255)" : "var(--primary)" }}
