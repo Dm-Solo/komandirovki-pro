@@ -30,21 +30,46 @@ type LocalAttachment = {
 
 const STEP_LABELS = ["Информация", "Чеки", "Проверка"];
 
-// Decodes an arbitrary audio blob and resamples it to headerless 16-bit
-// signed little-endian mono PCM at 16000 Hz, per Yandex SpeechKit's lpcm spec.
-async function decodeToPcm16(blob: Blob): Promise<ArrayBuffer> {
-  const targetRate = 16000;
+// Yandex SpeechKit's sync stt:recognize endpoint caps request bodies at 1MB.
+// Raw 16-bit PCM has no compression, so a plain 16kHz mono encoding only fits
+// ~30s of audio; leave headroom and fall back to 8kHz (Yandex's other
+// supported lpcm rate) for longer recordings to roughly double that budget.
+const STT_MAX_BYTES = 950_000;
+const STT_BYTES_PER_SAMPLE = 2;
+
+function pickSampleRate(durationSeconds: number): 8000 | 16000 {
+  const maxAt16k = STT_MAX_BYTES / (16000 * STT_BYTES_PER_SAMPLE);
+  return durationSeconds <= maxAt16k ? 16000 : 8000;
+}
+
+function maxDurationFor(rate: number): number {
+  return STT_MAX_BYTES / (rate * STT_BYTES_PER_SAMPLE);
+}
+
+async function decodeAudioBuffer(blob: Blob): Promise<AudioBuffer> {
   const arrayBuffer = await blob.arrayBuffer();
   const AudioContextCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const audioCtx = new AudioContextCtor();
   const decoded = await audioCtx.decodeAudioData(arrayBuffer);
   await audioCtx.close();
+  return decoded;
+}
 
-  const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetRate), targetRate);
+// Resamples (a prefix of) the decoded audio to headerless 16-bit signed
+// little-endian mono PCM at targetRate, per Yandex SpeechKit's lpcm spec.
+async function renderPcm16(
+  decoded: AudioBuffer,
+  targetRate: number,
+  maxDurationSeconds: number
+): Promise<{ buffer: ArrayBuffer; truncated: boolean }> {
+  const renderDuration = Math.min(decoded.duration, maxDurationSeconds);
+  const truncated = decoded.duration > maxDurationSeconds;
+
+  const offlineCtx = new OfflineAudioContext(1, Math.max(1, Math.ceil(renderDuration * targetRate)), targetRate);
   const source = offlineCtx.createBufferSource();
   source.buffer = decoded;
   source.connect(offlineCtx.destination);
-  source.start();
+  source.start(0, 0, renderDuration);
   const rendered = await offlineCtx.startRendering();
   const channelData = rendered.getChannelData(0);
 
@@ -53,7 +78,7 @@ async function decodeToPcm16(blob: Blob): Promise<ArrayBuffer> {
     const s = Math.max(-1, Math.min(1, channelData[i]));
     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
-  return pcm16.buffer;
+  return { buffer: pcm16.buffer, truncated };
 }
 
 async function transcribeVoiceNote(uploadId: string): Promise<string> {
@@ -61,22 +86,28 @@ async function transcribeVoiceNote(uploadId: string): Promise<string> {
   if (!audioRes.ok) throw new Error("Не удалось загрузить сохранённый аудиофайл");
   const blob = await audioRes.blob();
 
-  let pcm: ArrayBuffer;
+  let decoded: AudioBuffer;
   try {
-    pcm = await decodeToPcm16(blob);
+    decoded = await decodeAudioBuffer(blob);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     throw new Error(`Не удалось обработать аудиозапись (неподдерживаемый или повреждённый формат): ${reason}`);
   }
 
-  const res = await fetch("/api/ai/transcribe", {
+  const rate = pickSampleRate(decoded.duration);
+  const { buffer: pcm, truncated } = await renderPcm16(decoded, rate, maxDurationFor(rate));
+
+  const res = await fetch(`/api/ai/transcribe?sampleRateHertz=${rate}`, {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: pcm,
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Не удалось распознать голосовое сообщение");
-  return data.text as string;
+  const text = (data.text as string) || "";
+  return truncated
+    ? `${text}${text ? "\n\n" : ""}[Распознана только первая часть записи — она длиннее ограничения сервиса распознавания]`
+    : text;
 }
 
 export default function NewReportPage() {

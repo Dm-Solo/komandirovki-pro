@@ -16,15 +16,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Expects raw headerless 16-bit signed little-endian mono PCM at 16000 Hz
-  // (decoded and resampled client-side via Web Audio API), matching Yandex
-  // SpeechKit's lpcm format spec.
+  // Expects raw headerless 16-bit signed little-endian mono PCM (decoded and
+  // resampled client-side via Web Audio API), matching Yandex SpeechKit's
+  // lpcm format spec. The client picks 8000 or 16000 Hz depending on
+  // duration to stay under the endpoint's 1MB request body limit.
+  const rateParam = req.nextUrl.searchParams.get("sampleRateHertz");
+  const sampleRateHertz = rateParam === "8000" || rateParam === "48000" ? rateParam : "16000";
+
   const pcm = Buffer.from(await req.arrayBuffer());
   if (pcm.length === 0) {
     return NextResponse.json({ error: "Пустой аудиофайл" }, { status: 400 });
   }
+  if (pcm.length > 1_000_000) {
+    return NextResponse.json({ error: "Аудиозапись слишком большая для распознавания (лимит 1 МБ)" }, { status: 400 });
+  }
 
-  const url = `${YANDEX_STT_URL}?lang=ru-RU&format=lpcm&sampleRateHertz=16000&folderId=${encodeURIComponent(folderId)}`;
+  const url = `${YANDEX_STT_URL}?lang=ru-RU&format=lpcm&sampleRateHertz=${sampleRateHertz}&folderId=${encodeURIComponent(folderId)}`;
 
   try {
     const res = await fetch(url, {
