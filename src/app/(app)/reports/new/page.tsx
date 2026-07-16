@@ -572,11 +572,11 @@ export default function NewReportPage() {
                 </div>
               </div>
             )}
-            {voiceNote && voiceTranscript && (
+            {voiceNote && voiceTranscript !== null && (
               <div className="mt-3 pt-3 border-t" style={{ borderColor: "oklch(0.95 0.005 255)" }}>
                 <div className="text-xs font-extrabold mb-1.5">📝 Расшифровка голосового комментария</div>
                 <div className="text-[12.5px] leading-relaxed whitespace-pre-wrap" style={{ color: "oklch(0.35 0.015 255)" }}>
-                  {voiceTranscript}
+                  {voiceTranscript || "Не удалось распознать"}
                 </div>
               </div>
             )}
