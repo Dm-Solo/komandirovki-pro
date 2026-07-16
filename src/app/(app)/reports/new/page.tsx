@@ -162,7 +162,7 @@ export default function NewReportPage() {
 
   const step1Valid = !!(tripId && destination && startDate && endDate);
   const receiptsScanning = receipts.some((r) => r.scanning);
-  const step2Valid = receipts.length > 0 && !receiptsScanning;
+  const step2Valid = !receiptsScanning;
   const transcriptionPending = !!voiceNote && voiceTranscript === null;
   const nextDisabled = step === 0 ? !step1Valid : step === 1 ? !step2Valid : false;
 
