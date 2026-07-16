@@ -231,6 +231,19 @@ export default function NewReportPage() {
 
   const submitReport = async () => {
     setSubmitting(true);
+
+    let transcript = voiceTranscript;
+    if (voiceNote && transcript === null) {
+      try {
+        transcript = await transcribeVoiceNote(voiceNote.id);
+        setVoiceTranscript(transcript);
+      } catch (err) {
+        transcript = "";
+        setVoiceTranscript("");
+        console.error("Не удалось распознать голосовое сообщение", err);
+      }
+    }
+
     const res = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -244,6 +257,7 @@ export default function NewReportPage() {
         receipts: receipts.filter((r) => !r.scanning).map((r) => ({ merchant: r.merchant, category: r.category, amount: Number(r.amount) || 0 })),
         attachmentIds: attachments.map((a) => a.id),
         voiceNoteUploadId: voiceNote?.id ?? null,
+        voiceTranscript: transcript || null,
         aiSummary,
       }),
     });

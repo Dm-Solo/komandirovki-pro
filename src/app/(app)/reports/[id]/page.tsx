@@ -78,6 +78,15 @@ export default async function ReportDetailPage({
           </div>
         )}
 
+        {report.voiceNote && (
+          <div className="mt-3.5 pt-3.5 border-t" style={{ borderColor: "oklch(0.95 0.005 255)" }}>
+            <div className="text-xs font-extrabold mb-1.5">📝 Расшифровка голосового комментария</div>
+            <div className="text-[12.5px] leading-relaxed whitespace-pre-wrap" style={{ color: "oklch(0.35 0.015 255)" }}>
+              {report.voiceTranscript || "Не удалось распознать"}
+            </div>
+          </div>
+        )}
+
         {report.attachments.length > 0 && (
           <div className="mt-3.5 pt-3.5 border-t flex flex-col gap-1.5" style={{ borderColor: "oklch(0.95 0.005 255)" }}>
             {report.attachments.map((a) => (

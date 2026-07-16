@@ -35,6 +35,7 @@ export type Report = {
   status: "draft" | "pending" | "approved" | "rejected";
   comment: string;
   voiceNote: VoiceNote | null;
+  voiceTranscript: string | null;
   aiSummary: string | null;
   approvalSteps: ApprovalStep[];
   receipts: Receipt[];

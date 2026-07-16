@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     receipts: Array.isArray(body.receipts) ? body.receipts : [],
     attachmentIds: Array.isArray(body.attachmentIds) ? body.attachmentIds : [],
     voiceNoteUploadId: body.voiceNoteUploadId || null,
+    voiceTranscript: body.voiceTranscript || null,
     aiSummary: body.aiSummary || null,
   });
 

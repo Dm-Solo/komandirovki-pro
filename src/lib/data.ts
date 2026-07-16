@@ -18,6 +18,7 @@ type ReportRow = {
   status: string;
   comment: string | null;
   ai_summary: string | null;
+  voice_transcript: string | null;
   approval_steps: string;
   created_at: number;
 };
@@ -71,6 +72,7 @@ function decorateReport(row: ReportRow): Report {
     status: row.status as Report["status"],
     comment: row.comment ?? "",
     voiceNote: voiceNoteForReport(row.id),
+    voiceTranscript: row.voice_transcript,
     aiSummary: row.ai_summary,
     approvalSteps: JSON.parse(row.approval_steps) as ApprovalStep[],
     receipts: receiptsForReport(row.id),
@@ -139,6 +141,7 @@ export function createReport(
     receipts: { merchant: string; category: string; amount: number }[];
     attachmentIds: string[];
     voiceNoteUploadId: string | null;
+    voiceTranscript: string | null;
     aiSummary: string | null;
   }
 ): Report {
@@ -151,8 +154,8 @@ export function createReport(
   ];
 
   db.prepare(
-    `INSERT INTO reports (id, user_id, trip_id, title, destination, purpose, start_date, end_date, amount, status, comment, ai_summary, approval_steps, created_at)
-     VALUES (@id, @user_id, @trip_id, @title, @destination, @purpose, @start_date, @end_date, @amount, @status, @comment, @ai_summary, @approval_steps, @created_at)`
+    `INSERT INTO reports (id, user_id, trip_id, title, destination, purpose, start_date, end_date, amount, status, comment, ai_summary, voice_transcript, approval_steps, created_at)
+     VALUES (@id, @user_id, @trip_id, @title, @destination, @purpose, @start_date, @end_date, @amount, @status, @comment, @ai_summary, @voice_transcript, @approval_steps, @created_at)`
   ).run({
     id,
     user_id: userId,
@@ -166,6 +169,7 @@ export function createReport(
     status: "pending",
     comment: input.comment,
     ai_summary: input.aiSummary,
+    voice_transcript: input.voiceTranscript,
     approval_steps: JSON.stringify(approvalSteps),
     created_at: Date.now(),
   });

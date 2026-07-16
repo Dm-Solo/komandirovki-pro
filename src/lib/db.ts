@@ -57,6 +57,7 @@ function createSchema(db: DatabaseSync) {
       status TEXT NOT NULL DEFAULT 'draft',
       comment TEXT,
       ai_summary TEXT,
+      voice_transcript TEXT,
       approval_steps TEXT NOT NULL DEFAULT '[]',
       bitrix_item_id TEXT,
       created_at INTEGER NOT NULL
@@ -90,6 +91,9 @@ function createSchema(db: DatabaseSync) {
   }
   if (!reportColumns.some((c) => c.name === "trip_id")) {
     db.exec("ALTER TABLE reports ADD COLUMN trip_id TEXT REFERENCES trips(id)");
+  }
+  if (!reportColumns.some((c) => c.name === "voice_transcript")) {
+    db.exec("ALTER TABLE reports ADD COLUMN voice_transcript TEXT");
   }
 }
 
