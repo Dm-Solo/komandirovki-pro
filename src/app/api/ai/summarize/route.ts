@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
   const endDate: string = body.endDate || "—";
   const comment: string = body.comment || "—";
   const hasVoiceNote: boolean = !!body.hasVoiceNote;
+  const voiceTranscript: string = String(body.voiceTranscript || "").trim();
   const receipts: { merchant: string; category: string; amount: number }[] = Array.isArray(body.receipts)
     ? body.receipts
     : [];
@@ -52,7 +53,8 @@ export async function POST(req: NextRequest) {
     `Цель: ${PURPOSE_LABELS[purpose] || purpose}\n` +
     `Даты: ${startDate} — ${endDate}\n` +
     `Комментарий сотрудника: ${comment}\n` +
-    `Голосовой комментарий приложен: ${hasVoiceNote ? "да" : "нет"}\n\n` +
+    `Голосовой комментарий приложен: ${hasVoiceNote ? "да" : "нет"}\n` +
+    `Расшифровка голосового комментария: ${voiceTranscript || (hasVoiceNote ? "не удалось распознать" : "нет")}\n\n` +
     `Чеки:\n${receiptsList}\n\n` +
     `Приложенные файлы:\n${attachmentsList}\n\n` +
     `Итоговая сумма расходов: ${total} руб.`;

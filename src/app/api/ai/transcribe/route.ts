@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+
+const YANDEX_STT_URL = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize";
+
+export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
+
+  const apiKey = process.env.YANDEX_AI_STUDIO_API_KEY;
+  const folderId = process.env.YANDEX_AI_STUDIO_FOLDER_ID;
+  if (!apiKey || !folderId) {
+    return NextResponse.json(
+      { error: "Yandex AI Studio не настроен: нет YANDEX_AI_STUDIO_API_KEY / YANDEX_AI_STUDIO_FOLDER_ID" },
+      { status: 503 }
+    );
+  }
+
+  // Expects raw headerless 16-bit signed little-endian mono PCM at 16000 Hz
+  // (decoded and resampled client-side via Web Audio API), matching Yandex
+  // SpeechKit's lpcm format spec.
+  const pcm = Buffer.from(await req.arrayBuffer());
+  if (pcm.length === 0) {
+    return NextResponse.json({ error: "Пустой аудиофайл" }, { status: 400 });
+  }
+
+  const url = `${YANDEX_STT_URL}?lang=ru-RU&format=lpcm&sampleRateHertz=16000&folderId=${encodeURIComponent(folderId)}`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Api-Key ${apiKey}` },
+      body: pcm,
+    });
+    const data = await res.json();
+    if (!res.ok || data.error_code) {
+      console.error("[yandex-stt] recognize failed", res.status, JSON.stringify(data));
+      return NextResponse.json({ error: "Не удалось распознать голосовое сообщение" }, { status: 502 });
+    }
+    return NextResponse.json({ text: data.result || "" });
+  } catch (err) {
+    console.error("[yandex-stt] recognize threw", err);
+    return NextResponse.json({ error: "Не удалось распознать голосовое сообщение" }, { status: 502 });
+  }
+}

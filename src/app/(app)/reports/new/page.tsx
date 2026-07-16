@@ -30,6 +30,48 @@ type LocalAttachment = {
 
 const STEP_LABELS = ["Информация", "Чеки", "Проверка"];
 
+// Decodes an arbitrary audio blob and resamples it to headerless 16-bit
+// signed little-endian mono PCM at 16000 Hz, per Yandex SpeechKit's lpcm spec.
+async function decodeToPcm16(blob: Blob): Promise<ArrayBuffer> {
+  const targetRate = 16000;
+  const arrayBuffer = await blob.arrayBuffer();
+  const AudioContextCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const audioCtx = new AudioContextCtor();
+  const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+  await audioCtx.close();
+
+  const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetRate), targetRate);
+  const source = offlineCtx.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offlineCtx.destination);
+  source.start();
+  const rendered = await offlineCtx.startRendering();
+  const channelData = rendered.getChannelData(0);
+
+  const pcm16 = new Int16Array(channelData.length);
+  for (let i = 0; i < channelData.length; i++) {
+    const s = Math.max(-1, Math.min(1, channelData[i]));
+    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return pcm16.buffer;
+}
+
+async function transcribeVoiceNote(uploadId: string): Promise<string> {
+  const audioRes = await fetch(`/api/files/${uploadId}`);
+  if (!audioRes.ok) throw new Error("Не удалось загрузить аудиофайл");
+  const blob = await audioRes.blob();
+  const pcm = await decodeToPcm16(blob);
+
+  const res = await fetch("/api/ai/transcribe", {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: pcm,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось распознать голосовое сообщение");
+  return data.text as string;
+}
+
 export default function NewReportPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,7 +89,9 @@ export default function NewReportPage() {
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiStage, setAiStage] = useState<"transcribing" | "analyzing" | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +186,20 @@ export default function NewReportPage() {
     setAiLoading(true);
     setAiError(null);
     try {
+      let transcript = voiceTranscript;
+      if (voiceNote && transcript === null) {
+        setAiStage("transcribing");
+        try {
+          transcript = await transcribeVoiceNote(voiceNote.id);
+          setVoiceTranscript(transcript);
+        } catch (err) {
+          transcript = "";
+          setVoiceTranscript("");
+          console.error("Не удалось распознать голосовое сообщение", err);
+        }
+      }
+
+      setAiStage("analyzing");
       const res = await fetch("/api/ai/summarize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -152,6 +210,7 @@ export default function NewReportPage() {
           endDate,
           comment,
           hasVoiceNote: !!voiceNote,
+          voiceTranscript: transcript || "",
           receipts: receipts.filter((r) => !r.scanning).map((r) => ({ merchant: r.merchant, category: r.category, amount: r.amount })),
           attachments: attachments.map((a) => ({ name: a.name, fileType: a.fileType })),
         }),
@@ -166,6 +225,7 @@ export default function NewReportPage() {
       setAiError("Не удалось получить анализ ИИ. Попробуйте ещё раз.");
     } finally {
       setAiLoading(false);
+      setAiStage(null);
     }
   };
 
@@ -303,7 +363,13 @@ export default function NewReportPage() {
             <textarea className="input" rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Краткое описание цели поездки" />
           </Field>
           <Field label="Голосовой комментарий (необязательно)">
-            <VoiceRecorder value={voiceNote} onChange={setVoiceNote} />
+            <VoiceRecorder
+              value={voiceNote}
+              onChange={(v) => {
+                setVoiceNote(v);
+                setVoiceTranscript(null);
+              }}
+            />
           </Field>
         </div>
       )}
@@ -513,11 +579,18 @@ export default function NewReportPage() {
                 className="border border-dashed font-bold text-xs py-2 px-3.5 rounded-[9px] cursor-pointer whitespace-nowrap disabled:opacity-60"
                 style={{ borderColor: "var(--primary)", background: "var(--primary-soft)", color: "var(--primary-dark)" }}
               >
-                ✨ {aiLoading ? "Анализируем…" : aiSummary ? "Повторить анализ" : "Сформировать отчёт с ИИ"}
+                ✨{" "}
+                {aiStage === "transcribing"
+                  ? "Распознаём голос…"
+                  : aiStage === "analyzing"
+                  ? "Анализируем…"
+                  : aiSummary
+                  ? "Повторить анализ"
+                  : "Сформировать отчёт с ИИ"}
               </button>
             </div>
             <div className="text-xs mb-2.5" style={{ color: "var(--muted)" }}>
-              Отправляет чеки, файлы и заметки в ИИ для формирования отчёта
+              Отправляет чеки, файлы, голосовую заметку и другие материалы в ИИ для формирования отчёта
             </div>
             {aiLoading && (
               <div className="flex flex-col gap-1.5">
