@@ -35,11 +35,13 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     if (!res.ok || data.error_code) {
       console.error("[yandex-stt] recognize failed", res.status, JSON.stringify(data));
-      return NextResponse.json({ error: "Не удалось распознать голосовое сообщение" }, { status: 502 });
+      const reason = data.error_message || data.error_code || `HTTP ${res.status}`;
+      return NextResponse.json({ error: `Не удалось распознать голосовое сообщение: ${reason}` }, { status: 502 });
     }
     return NextResponse.json({ text: data.result || "" });
   } catch (err) {
     console.error("[yandex-stt] recognize threw", err);
-    return NextResponse.json({ error: "Не удалось распознать голосовое сообщение" }, { status: 502 });
+    const reason = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Не удалось распознать голосовое сообщение: ${reason}` }, { status: 502 });
   }
 }

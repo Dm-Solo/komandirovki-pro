@@ -58,9 +58,16 @@ async function decodeToPcm16(blob: Blob): Promise<ArrayBuffer> {
 
 async function transcribeVoiceNote(uploadId: string): Promise<string> {
   const audioRes = await fetch(`/api/files/${uploadId}`);
-  if (!audioRes.ok) throw new Error("Не удалось загрузить аудиофайл");
+  if (!audioRes.ok) throw new Error("Не удалось загрузить сохранённый аудиофайл");
   const blob = await audioRes.blob();
-  const pcm = await decodeToPcm16(blob);
+
+  let pcm: ArrayBuffer;
+  try {
+    pcm = await decodeToPcm16(blob);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new Error(`Не удалось обработать аудиозапись (неподдерживаемый или повреждённый формат): ${reason}`);
+  }
 
   const res = await fetch("/api/ai/transcribe", {
     method: "POST",
@@ -92,6 +99,7 @@ export default function NewReportPage() {
   const [aiStage, setAiStage] = useState<"transcribing" | "analyzing" | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
+  const [voiceTranscriptError, setVoiceTranscriptError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -136,11 +144,14 @@ export default function NewReportPage() {
       transcriptionPromiseRef.current = transcribeVoiceNote(voiceNote.id)
         .then((text) => {
           setVoiceTranscript(text);
+          setVoiceTranscriptError(null);
           return text;
         })
         .catch((err) => {
+          const message = err instanceof Error ? err.message : "Не удалось распознать голосовое сообщение";
           console.error("Не удалось распознать голосовое сообщение", err);
           setVoiceTranscript("");
+          setVoiceTranscriptError(message);
           return "";
         })
         .finally(() => {
@@ -392,6 +403,7 @@ export default function NewReportPage() {
               onChange={(v) => {
                 setVoiceNote(v);
                 setVoiceTranscript(null);
+                setVoiceTranscriptError(null);
               }}
             />
           </Field>
@@ -575,9 +587,19 @@ export default function NewReportPage() {
             {voiceNote && voiceTranscript !== null && (
               <div className="mt-3 pt-3 border-t" style={{ borderColor: "oklch(0.95 0.005 255)" }}>
                 <div className="text-xs font-extrabold mb-1.5">📝 Расшифровка голосового комментария</div>
-                <div className="text-[12.5px] leading-relaxed whitespace-pre-wrap" style={{ color: "oklch(0.35 0.015 255)" }}>
-                  {voiceTranscript || "Не удалось распознать"}
-                </div>
+                {voiceTranscript ? (
+                  <div className="text-[12.5px] leading-relaxed whitespace-pre-wrap" style={{ color: "oklch(0.35 0.015 255)" }}>
+                    {voiceTranscript}
+                  </div>
+                ) : voiceTranscriptError ? (
+                  <div className="text-[12.5px] leading-relaxed" style={{ color: "var(--danger)" }}>
+                    Не удалось распознать: {voiceTranscriptError}
+                  </div>
+                ) : (
+                  <div className="text-[12.5px]" style={{ color: "var(--muted-2)" }}>
+                    Речь не распознана — запись может быть слишком тихой, короткой или без голоса
+                  </div>
+                )}
               </div>
             )}
           </div>
