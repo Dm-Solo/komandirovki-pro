@@ -124,7 +124,8 @@ export default function NewReportPage() {
   const step1Valid = !!(tripId && destination && startDate && endDate);
   const receiptsScanning = receipts.some((r) => r.scanning);
   const step2Valid = receipts.length > 0 && !receiptsScanning;
-  const nextDisabled = step === 0 ? !step1Valid : step === 1 ? !step2Valid : false;
+  const transcriptionPending = !!voiceNote && voiceTranscript === null;
+  const nextDisabled = step === 0 ? !step1Valid : step === 1 ? !step2Valid || transcriptionPending : false;
 
   // Shares one in-flight transcription across all trigger points (step
   // transition, AI-analyze, submit) instead of racing duplicate requests.
@@ -399,6 +400,19 @@ export default function NewReportPage() {
 
       {step === 1 && (
         <div className="flex flex-col gap-3">
+          {transcriptionPending && (
+            <div
+              className="rounded-2xl py-3.5 px-4.5 flex flex-col gap-2.5"
+              style={{ background: "var(--primary-soft)" }}
+            >
+              <div className="flex items-center gap-2.5 text-[13px] font-bold" style={{ color: "var(--primary-dark)" }}>
+                <span className="text-[15px]">🎙️</span> Распознаём голосовую заметку… это займёт немного времени
+              </div>
+              <div className="progress-track">
+                <div className="progress-bar-indeterminate" />
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div className="text-[13.5px]" style={{ color: "var(--muted)" }}>
               Загрузите чеки — данные будут распознаны автоматически

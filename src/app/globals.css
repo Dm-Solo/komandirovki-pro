@@ -61,6 +61,21 @@ a {
   }
 }
 
+@keyframes progress-indeterminate {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}
+
 @layer components {
   .input {
     width: 100%;
@@ -85,6 +100,23 @@ a {
 
 .min-h-screen-safe {
   min-height: 100dvh;
+}
+
+.progress-track {
+  position: relative;
+  overflow: hidden;
+  height: 6px;
+  border-radius: 999px;
+  background: oklch(0.9 0.02 258);
+}
+
+.progress-bar-indeterminate {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--primary);
+  animation: progress-indeterminate 1.4s infinite cubic-bezier(0.65, 0.815, 0.735, 0.395);
 }
 
 .oc-shimmer {
