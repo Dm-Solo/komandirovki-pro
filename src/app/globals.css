@@ -119,6 +119,16 @@ a {
   animation: progress-indeterminate 1.4s infinite cubic-bezier(0.65, 0.815, 0.735, 0.395);
 }
 
+.progress-bar-determinate {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
 .oc-shimmer {
   background: linear-gradient(
     90deg,

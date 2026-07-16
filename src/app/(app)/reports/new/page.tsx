@@ -31,11 +31,11 @@ type LocalAttachment = {
 const STEP_LABELS = ["Информация", "Чеки", "Проверка"];
 
 // Yandex SpeechKit's sync stt:recognize endpoint hard-caps clips at 30s of
-// audio, independent of the (also enforced) 1MB request body limit - at
-// 16kHz mono 16-bit PCM, 29s of audio is ~928KB, comfortably under both, so
-// a single fixed rate/duration budget covers both constraints at once.
+// audio (confirmed against the live API) and 1MB per request. To transcribe
+// longer recordings in full, the audio is split into <=29s chunks, each
+// sent as its own recognize call, then the results are joined in order.
 const STT_SAMPLE_RATE = 16000;
-const STT_MAX_DURATION_SECONDS = 29;
+const STT_CHUNK_SECONDS = 29;
 
 async function decodeAudioBuffer(blob: Blob): Promise<AudioBuffer> {
   const arrayBuffer = await blob.arrayBuffer();
@@ -46,21 +46,20 @@ async function decodeAudioBuffer(blob: Blob): Promise<AudioBuffer> {
   return decoded;
 }
 
-// Resamples (a prefix of) the decoded audio to headerless 16-bit signed
-// little-endian mono PCM at targetRate, per Yandex SpeechKit's lpcm spec.
-async function renderPcm16(
+// Resamples the [offsetSeconds, offsetSeconds + durationSeconds) window of
+// the decoded audio to headerless 16-bit signed little-endian mono PCM at
+// targetRate, per Yandex SpeechKit's lpcm spec.
+async function renderPcm16Chunk(
   decoded: AudioBuffer,
   targetRate: number,
-  maxDurationSeconds: number
-): Promise<{ buffer: ArrayBuffer; truncated: boolean }> {
-  const renderDuration = Math.min(decoded.duration, maxDurationSeconds);
-  const truncated = decoded.duration > maxDurationSeconds;
-
-  const offlineCtx = new OfflineAudioContext(1, Math.max(1, Math.ceil(renderDuration * targetRate)), targetRate);
+  offsetSeconds: number,
+  durationSeconds: number
+): Promise<ArrayBuffer> {
+  const offlineCtx = new OfflineAudioContext(1, Math.max(1, Math.ceil(durationSeconds * targetRate)), targetRate);
   const source = offlineCtx.createBufferSource();
   source.buffer = decoded;
   source.connect(offlineCtx.destination);
-  source.start(0, 0, renderDuration);
+  source.start(0, offsetSeconds, durationSeconds);
   const rendered = await offlineCtx.startRendering();
   const channelData = rendered.getChannelData(0);
 
@@ -69,10 +68,24 @@ async function renderPcm16(
     const s = Math.max(-1, Math.min(1, channelData[i]));
     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
-  return { buffer: pcm16.buffer, truncated };
+  return pcm16.buffer;
 }
 
-async function transcribeVoiceNote(uploadId: string): Promise<string> {
+async function transcribeChunk(pcm: ArrayBuffer): Promise<string> {
+  const res = await fetch(`/api/ai/transcribe?sampleRateHertz=${STT_SAMPLE_RATE}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: pcm,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Не удалось распознать голосовое сообщение");
+  return (data.text as string) || "";
+}
+
+async function transcribeVoiceNote(
+  uploadId: string,
+  onProgress?: (done: number, total: number) => void
+): Promise<string> {
   const audioRes = await fetch(`/api/files/${uploadId}`);
   if (!audioRes.ok) throw new Error("Не удалось загрузить сохранённый аудиофайл");
   const blob = await audioRes.blob();
@@ -85,19 +98,26 @@ async function transcribeVoiceNote(uploadId: string): Promise<string> {
     throw new Error(`Не удалось обработать аудиозапись (неподдерживаемый или повреждённый формат): ${reason}`);
   }
 
-  const { buffer: pcm, truncated } = await renderPcm16(decoded, STT_SAMPLE_RATE, STT_MAX_DURATION_SECONDS);
+  // Even split (not fixed 29s windows) so the last chunk isn't an oddly
+  // short tail - ceil(duration / STT_CHUNK_SECONDS) guarantees each share
+  // still stays at or under the limit.
+  const chunkCount = Math.max(1, Math.ceil(decoded.duration / STT_CHUNK_SECONDS));
+  const chunkDuration = decoded.duration / chunkCount;
 
-  const res = await fetch(`/api/ai/transcribe?sampleRateHertz=${STT_SAMPLE_RATE}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/octet-stream" },
-    body: pcm,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Не удалось распознать голосовое сообщение");
-  const text = (data.text as string) || "";
-  return truncated
-    ? `${text}${text ? "\n\n" : ""}[Распознаны только первые ${STT_MAX_DURATION_SECONDS} секунд записи — сервис распознавания не поддерживает более длинные ролики]`
-    : text;
+  const parts: string[] = [];
+  for (let i = 0; i < chunkCount; i++) {
+    const pcm = await renderPcm16Chunk(decoded, STT_SAMPLE_RATE, i * chunkDuration, chunkDuration);
+    try {
+      const text = await transcribeChunk(pcm);
+      if (text) parts.push(text);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      parts.push(`[фрагмент ${i + 1} не распознан: ${reason}]`);
+    }
+    onProgress?.(i + 1, chunkCount);
+  }
+
+  return parts.join(" ").trim();
 }
 
 export default function NewReportPage() {
@@ -121,6 +141,7 @@ export default function NewReportPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
   const [voiceTranscriptError, setVoiceTranscriptError] = useState<string | null>(null);
+  const [transcriptionProgress, setTranscriptionProgress] = useState<{ done: number; total: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -162,7 +183,8 @@ export default function NewReportPage() {
     if (voiceTranscript !== null) return Promise.resolve(voiceTranscript);
     if (!voiceNote) return Promise.resolve("");
     if (!transcriptionPromiseRef.current) {
-      transcriptionPromiseRef.current = transcribeVoiceNote(voiceNote.id)
+      setTranscriptionProgress(null);
+      transcriptionPromiseRef.current = transcribeVoiceNote(voiceNote.id, (done, total) => setTranscriptionProgress({ done, total }))
         .then((text) => {
           setVoiceTranscript(text);
           setVoiceTranscriptError(null);
@@ -177,6 +199,7 @@ export default function NewReportPage() {
         })
         .finally(() => {
           transcriptionPromiseRef.current = null;
+          setTranscriptionProgress(null);
         });
     }
     return transcriptionPromiseRef.current;
@@ -425,6 +448,7 @@ export default function NewReportPage() {
                 setVoiceNote(v);
                 setVoiceTranscript(null);
                 setVoiceTranscriptError(null);
+                setTranscriptionProgress(null);
               }}
             />
           </Field>
@@ -599,9 +623,17 @@ export default function NewReportPage() {
               <div className="mt-3 pt-3 border-t flex flex-col gap-2.5" style={{ borderColor: "oklch(0.95 0.005 255)" }}>
                 <div className="flex items-center gap-2 text-xs font-bold" style={{ color: "var(--primary-dark)" }}>
                   <span className="text-[13px]">🎙️</span> Распознаём голосовую заметку…
+                  {transcriptionProgress && transcriptionProgress.total > 1 && ` (${transcriptionProgress.done}/${transcriptionProgress.total})`}
                 </div>
                 <div className="progress-track">
-                  <div className="progress-bar-indeterminate" />
+                  {transcriptionProgress ? (
+                    <div
+                      className="progress-bar-determinate"
+                      style={{ width: `${(transcriptionProgress.done / transcriptionProgress.total) * 100}%` }}
+                    />
+                  ) : (
+                    <div className="progress-bar-indeterminate" />
+                  )}
                 </div>
               </div>
             )}
